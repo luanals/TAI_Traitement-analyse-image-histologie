@@ -1,0 +1,6 @@
+tifffile
+scikit-image
+scikit-learn
+imageio
+pandas
+imagecodecs
