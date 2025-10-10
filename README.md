@@ -1,7 +1,7 @@
 # 🧬 Analyse automatisée d’images histologiques pulmonaires – SDRA  
 
 ## 📖 Contexte  
-Ce projet a été développé au sein du **Laboratoire de Biomécanique Appliquée (LBA)** dans le cadre d’une recherche sur le **Syndrome de Détresse Respiratoire Aiguë (SDRA)**.  
+Ce projet a été développé au sein de Polytech Marseille avec l'orientation du Laboratoire de Biomécanique Appliquée (LBA) dans le cadre d’une recherche sur le **Syndrome de Détresse Respiratoire Aiguë (SDRA)**.  
 L’objectif est de mieux comprendre l’impact du SDRA sur la biomécanique et la physiologie pulmonaires à partir d’images histologiques colorées au **Trichrome de Masson**.  
 
 ## 🎯 Objectifs  
