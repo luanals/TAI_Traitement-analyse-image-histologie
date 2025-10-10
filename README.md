@@ -58,9 +58,9 @@ L’objectif est de mieux comprendre l’impact du SDRA sur la biomécanique et 
 ```
 .
 ├── analyse_pulmonaire.py      # Script principal (traitement et analyse)
-├── utils/                      # Fonctions de support
 ├── exemples/                   # Images de test
 ├── resultats/                  # Résultats exportés (.csv)
+├── site_web/                   # Scripts pour le site
 ├── requirements.txt            # Dépendances Python
 └── README.md
 ```
@@ -78,5 +78,5 @@ Un site web accompagnera ce dépôt, présentant :
 ## 🧩 Perspectives  
 - +?
 
-## 👩‍🔬 Auteurs  
-Projet réalisé par **Alcide Demeusy et Luana Lopes Santiago**, étudiants en génie biomédical à **Polytech Aix-Marseille Université**.  
+## 🧑‍💻 Auteurs  
+Projet réalisé par **Alcide Demeusy** et **Luana Lopes Santiago**, étudiants en génie biomédical à **Polytech Aix-Marseille Université**.  
