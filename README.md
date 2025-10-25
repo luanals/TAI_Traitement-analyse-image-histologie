@@ -30,7 +30,7 @@ L’objectif est de mieux comprendre l’impact du SDRA sur la biomécanique et 
 
 1. **Cloner le dépôt :**  
    ```bash
-   git clone https://github.com/ton-utilisateur/TAI-SDRA.git
+   git clone https://github.com/luanals/TAI_Traitement-analyse-image-histologie.git
    cd TAI-SDRA
    ```
 
