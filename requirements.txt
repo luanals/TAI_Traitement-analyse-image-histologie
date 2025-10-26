@@ -3,4 +3,7 @@ scikit-image
 scikit-learn
 imageio
 pandas
+
 imagecodecs
+
+opencv-python
