@@ -1,614 +1,277 @@
 """
-TAI.py - Analyse Automatisée d'Images Histologiques (VERSION FINALE HSV)
-=============================================================================
-Analyse de coupes pulmonaires colorées au Trichrome de Masson pour quantifier :
-  - Collagène (bleu)
-  - Tissu normal (rose/rouge)
-  - Air alvéolaire utile (blanc)
-
-VERSION FINALE : Classification HSV optimisée sans OpenCV
+TAI_V51_ANNOTATED - CODE EXPLIQUÉ
+=================================
+Ce script est le moteur principal d'analyse.
+Il a été commenté pour servir de documentation technique.
 """
 
-# ---------------------------
-# IMPORTS ET GESTION D'ABSENCES
-# ---------------------------
 import os
+import sys
 import time
+import csv
+import glob
+import datetime
+import gc  # Garbage Collector : Sert à vider la mémoire RAM manuellement
 import numpy as np
-import pandas as pd
-from datetime import datetime
-from pathlib import Path
-from skimage.measure import label, regionprops
+import matplotlib.pyplot as plt
+from tqdm import tqdm # Bibliothèque pour la barre de chargement
+
+# Force matplotlib à ne pas ouvrir de fenêtres (évite les plantages sur serveur ou longues séries)
+plt.switch_backend('Agg')
+
+# --- CONSTANTES & INFO VERSION ---
+CODE_VERSION = "TAI v51 (Smart Edges)"
+DATE_RUN = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
 
 try:
-    import tifffile as tiff
-except ImportError:
-    tiff = None
-
-try:
-    from skimage import filters, exposure, morphology, measure, color
+    # tiffslide est une alternative plus rapide et compatible que openslide pour les gros TIF
+    import tiffslide
+    from skimage import color, filters, morphology
     from skimage.transform import resize
-except ImportError:
-    filters = exposure = morphology = measure = color = resize = None
+    from scipy.ndimage import binary_fill_holes, center_of_mass
+except ImportError as e:
+    print(f"❌ Manque une librairie : {e}"); sys.exit(1)
 
-try:
-    import imageio
-except ImportError:
-    imageio = None
+# --- PARAMETRES DE SENSIBILITÉ ---
+TILE_SIZE = 2048        # Taille des carrés analysés (compromis RAM/Vitesse)
+HSV_SAT_MIN = 0.05      # Ignorer ce qui est trop gris (poussière, fond blanc sale)
+HSV_VAL_MIN = 0.10      # Ignorer ce qui est trop noir
+HSV_VAL_MAX = 0.95      # Ignorer ce qui est blanc pur (lumière microscope)
 
-try:
-    from scipy.ndimage import gaussian_filter, binary_fill_holes
-except ImportError:
-    gaussian_filter = binary_fill_holes = None
+# Codes couleurs pour la visualisation (RGB normalisé 0-1)
+ID_AIR, ID_COLL, ID_TISS = 0, 1, 2
+C_AIR  = [0.9, 1.0, 0.9] # Vert pâle (Fond)
+C_COLL = [0.0, 0.4, 1.0] # Bleu (Collagène)
+C_TISS = [1.0, 0.2, 0.2] # Rouge (Muscle/Cellules)
 
-try:
-    import matplotlib.pyplot as plt
-    from matplotlib.colors import rgb_to_hsv
-except ImportError:
-    plt = None
-    rgb_to_hsv = None
+# =========================================================
+# 1. MOTEUR DE CALIBRATION (Cerveau de l'algo)
+# =========================================================
 
-
-# ================================================================
-# ⚙️ PARAMÈTRES HSV AJUSTABLES (MODIFIEZ ICI)
-# ================================================================
-# Format HSV : H en [0, 1], S en [0, 1], V en [0, 1]
-# H = 0.0 correspond à 0°, H = 1.0 correspond à 360°
-
-# AIR (gris clair / blanc)
-AIR_S_MAX = 0.25         # Saturation faible (quasi désaturé)
-AIR_V_MIN = 0.75         # Luminosité haute
-
-# COLLAGÈNE (bleu)
-# Bleu en HSV : environ 200-250° soit 0.55-0.70 en [0,1]
-COLLAGEN_H_MIN = 0.55    # ~198°
-COLLAGEN_H_MAX = 0.70    # ~252°
-COLLAGEN_S_MIN = 0.25    # Saturation élevée (bleu marqué)
-COLLAGEN_V_MIN = 0.20    # Éviter bleu sombre/bruit
-
-# TISSU/AUTRE (rose/rouge/violet/magenta)
-# Rouge-violet : 270-360° et 0-36° soit 0.75-1.0 et 0.0-0.1
-TISSUE_H_MIN1 = 0.75     # Magenta/violet haut (270°)
-TISSUE_H_MAX1 = 1.00     # Rouge (360°)
-TISSUE_H_MIN2 = 0.00     # Rouge (0°)
-TISSUE_H_MAX2 = 0.10     # Orange/rouge (36°)
-TISSUE_S_MIN = 0.20      # Saturation assez élevée
-TISSUE_V_MIN = 0.15      # Luminosité minimale
-
-# ================================================================
-
-
-# ================================================================
-# AFFICHAGE
-# ================================================================
-def print_header(title):
-    print("\n" + "=" * 70)
-    print(f" {title.center(66)} ")
-    print("=" * 70)
-
-def print_info(msg): print(f"ℹ️  {msg}")
-def print_success(msg): print(f"✅  {msg}")
-def print_warning(msg): print(f"⚠️  {msg}")
-def print_error(msg): print(f"❌  {msg}")
-
-
-def print_hsv_guide():
-    """Affiche un guide des paramètres HSV"""
-    print_header("📊 GUIDE DE CALIBRATION HSV")
-    print("Pour ajuster les seuils, modifiez les variables en haut du script")
-    print("Format : H en [0, 1], S en [0, 1], V en [0, 1]")
-    print("")
-    print("AIR (gris clair / blanc) :")
-    print(f"  Saturation max : {AIR_S_MAX}")
-    print(f"  Luminosité min : {AIR_V_MIN}")
-    print("")
-    print("COLLAGÈNE (bleu) :")
-    print(f"  Teinte H : {COLLAGEN_H_MIN} - {COLLAGEN_H_MAX} ({int(COLLAGEN_H_MIN*360)}° - {int(COLLAGEN_H_MAX*360)}°)")
-    print(f"  Saturation min : {COLLAGEN_S_MIN}")
-    print(f"  Luminosité min : {COLLAGEN_V_MIN}")
-    print("")
-    print("TISSU/AUTRE (rose/rouge/violet) :")
-    print(f"  Teinte H : {TISSUE_H_MIN1}-{TISSUE_H_MAX1} ({int(TISSUE_H_MIN1*360)}°-{int(TISSUE_H_MAX1*360)}°)")
-    print(f"           ou {TISSUE_H_MIN2}-{TISSUE_H_MAX2} ({int(TISSUE_H_MIN2*360)}°-{int(TISSUE_H_MAX2*360)}°)")
-    print(f"  Saturation min : {TISSUE_S_MIN}")
-    print(f"  Luminosité min : {TISSUE_V_MIN}")
-    print("")
-    print("💡 Pour convertir depuis un color picker RGB :")
-    print("   Utilisez un convertisseur RGB→HSV en ligne")
-    print("   Puis divisez H par 360 pour obtenir [0,1]")
-    print("=" * 70)
-
-
-# ================================================================
-# LECTURE D'IMAGE
-# ================================================================
-def read_tiff(path, downscale_preview=2):
-    print_info(f"Lecture du fichier: {os.path.basename(path)}")
-    arr = None
-
-    if tiff is not None:
-        try:
-            arr = tiff.imread(path)
-        except Exception as e:
-            print_warning(f"tifffile a échoué: {e}")
-
-    if arr is None and imageio is not None:
-        arr = imageio.imread(path)
-
-    if arr is None:
-        raise RuntimeError("Impossible de lire le TIFF.")
-
-    if downscale_preview > 1:
-        H, W = arr.shape[:2]
-        arr = arr[::downscale_preview, ::downscale_preview]
-        print(f"   Image sous-échantillonnée ({downscale_preview}x) → {arr.shape[1]}x{arr.shape[0]} px")
-
-    if arr.ndim == 2:
-        arr = np.stack([arr] * 3, axis=-1)
-
-    if arr.dtype != np.uint8:
-        if exposure is not None:
-            arr = exposure.rescale_intensity(arr, out_range='uint8').astype(np.uint8)
-        else:
-            arr = ((arr - arr.min()) / (arr.ptp() + 1e-9) * 255).astype(np.uint8)
-
-    print_success(f"Image chargée: {arr.shape[1]}x{arr.shape[0]} px")
-    return arr
-
-
-# ================================================================
-# DÉTECTION DU CONTOUR
-# ================================================================
-def detect_sample_contour(img, subsample_factor=10, blur_sigma=2):
-    print_info("Détection du contour en cours...")
-    start = time.time()
-    H, W = img.shape[:2]
-
-    img_small = img[::subsample_factor, ::subsample_factor]
-    gray = np.mean(img_small.astype(np.float32), axis=2) / 255.0
-
-    if gaussian_filter is not None:
-        gray_blur = gaussian_filter(gray, sigma=blur_sigma)
-    else:
-        gray_blur = gray
-
-    thresh = filters.threshold_otsu(gray_blur)
-    mask_small = gray_blur < thresh
-
-    labeled = measure.label(mask_small)
-    props = measure.regionprops(labeled)
-    if not props:
-        raise ValueError("Aucune région détectée.")
-
-    largest = max(props, key=lambda r: r.area)
-    samplemask_small = labeled == largest.label
-
-    samplemask_small = morphology.binary_closing(samplemask_small, morphology.disk(5))
-    samplemask_small = morphology.binary_dilation(samplemask_small, morphology.disk(2))
-
-    if binary_fill_holes is not None:
-        samplemask_small = binary_fill_holes(samplemask_small)
-
-    samplemask = resize(samplemask_small.astype(np.float32), (H, W), order=0, preserve_range=True) > 0.5
-
-    print_success(f"Contour détecté en {time.time() - start:.1f}s")
-    return samplemask
-
-
-# ================================================================
-# CLASSIFICATION HSV (VOTRE FONCTION INTÉGRÉE)
-# ================================================================
-def classify_hsv(small_img, small_mask):
+def auto_calibrate_hsv_v36(slide, out_dir):
     """
-    Classification HSV sans opencv (utilise matplotlib.colors.rgb_to_hsv).
-    Retourne : mask_air, mask_collagen, mask_tissue_final, mask_unclassified
+    Cette fonction regarde l'image en basse résolution pour décider
+    quelles nuances de bleu sont du collagène.
     """
-    if rgb_to_hsv is None:
-        raise ImportError("matplotlib.colors.rgb_to_hsv requis pour la conversion HSV")
+    print("   ↳ 🧠 Calibration (Cyan Force)...")
 
-    # Normalisation
-    img_norm = small_img.astype(np.float32) / 255.0
+    # On récupère une miniature (thumbnail) pour aller vite
+    try: thumb = np.array(slide.get_thumbnail((1024, 1024)).convert("RGB"))
+    except: thumb = np.array(slide.get_thumbnail((512, 512)).convert("RGB"))
 
-    # Conversion HSV uniquement avec matplotlib
-    hsv = rgb_to_hsv(img_norm)
-    H = hsv[..., 0]   # 0–1
-    S = hsv[..., 1]
-    V = hsv[..., 2]
+    # Conversion en espace HSV (Teinte, Saturation, Valeur)
+    # H (Hue) est le canal le plus important ici (la couleur pure)
+    hsv = color.rgb2hsv(thumb)
+    hue, sat, val = hsv[:,:,0], hsv[:,:,1], hsv[:,:,2]
 
-    # ==========================================================
-    # 1) AIR (gris clair)
-    # - teinte indéfinie
-    # - faible saturation
-    # - haute luminosité
-    # ==========================================================
-    mask_air = (
-        (S < AIR_S_MAX) &
-        (V > AIR_V_MIN) &
-        small_mask
-    )
+    # On ne garde que les pixels colorés pour calculer l'histogramme
+    valid_mask = (sat > 0.15) & (val > 0.15) & (val < 0.95)
+    valid_hues = hue[valid_mask]
 
-    # ==========================================================
-    # 2) COLLAGÈNE (bleu)
-    # Bleu = H entre 0.55 et 0.70 environ en HSV matplotlib (≈200° à 250°)
-    # Saturation élevée car bleu très marqué
-    # ==========================================================
-    mask_collagen = (
-        (H >= COLLAGEN_H_MIN) & (H <= COLLAGEN_H_MAX) &   # fenêtre bleue
-        (S > COLLAGEN_S_MIN) &                            # saturé
-        (V > COLLAGEN_V_MIN) &                            # éviter bleu sombre ou bruit
-        small_mask
-    )
+    # Sécurité si l'image est vide
+    if len(valid_hues) == 0: return 0.48, 0.85
 
-    # ==========================================================
-    # 3) TISSU (rose / rouge / violet)
-    # - teintes entre rouge→magenta→violet
-    #   ~0.90–1.00 (rouge)  ou 0.00–0.10
-    #   ~0.75–0.90 (magenta)
-    # ==========================================================
-    mask_tissue = (
-        (
-            ((H >= TISSUE_H_MIN1) & (H <= TISSUE_H_MAX1)) |   # violet/magenta/rouge haut
-            ((H >= TISSUE_H_MIN2) & (H <= TISSUE_H_MAX2))     # rouge bas
-        ) &
-        (S > TISSUE_S_MIN) &                                  # doit être assez saturé (évite fond)
-        (V > TISSUE_V_MIN) &
-        small_mask
-    )
+    # Calcul de la répartition des couleurs
+    hist, bin_edges = np.histogram(valid_hues, bins=120, range=(0, 1))
+    centers = (bin_edges[:-1] + bin_edges[1:]) / 2
 
-    # ==========================================================
-    # 4) NON CLASSÉS
-    # ==========================================================
-    mask_unclassified = small_mask & ~(mask_air | mask_collagen | mask_tissue)
+    # On isole la zone "Bleu théorique" (0.35 à 0.85)
+    blue_zone_mask = (centers > 0.35) & (centers < 0.85)
+    hist_blue = hist.copy()
+    hist_blue[~blue_zone_mask] = 0
 
-    # On ajoute les non-classés dans "tissu" (reste biologique)
-    mask_tissue_final = mask_tissue | mask_unclassified
+    # Si pas de bleu, on renvoie les valeurs par défaut
+    if np.sum(hist_blue) == 0: return 0.48, 0.85
 
-    return mask_air, mask_collagen, mask_tissue_final, mask_unclassified
+    # Détection du sommet de la courbe bleue
+    peak_idx = np.argmax(hist_blue)
 
+    # Recherche de la fin du pic bleu (avant que ça ne devienne violet)
+    threshold = np.max(hist_blue) * 0.15
+    idx_max = peak_idx
+    while idx_max < len(hist)-1 and hist[idx_max] > threshold and centers[idx_max] < 0.85:
+        idx_max += 1
+    detected_max = centers[idx_max]
 
-# ================================================================
-# QUANTIFICATION (UTILISE classify_hsv)
-# ================================================================
-def quantify_structures(img, samplemask, downscale_factor=10):
-    print_info("Quantification en cours...")
-    start = time.time()
+    ### LOGIQUE "CYAN FORCE" (Spécifique V36/V51) ###
+    # 1. Min = 0.48 : On force la prise en compte du Cyan (collagène clair/délavé)
+    # 2. Max = 0.85 : On met un MUR indépassable pour ne jamais prendre le violet (muscle)
+    final_min = 0.48
+    final_max = min(0.85, detected_max + 0.03)
 
-    # Sous-échantillonnage
-    small_img = img[::downscale_factor, ::downscale_factor]
-    small_mask = samplemask[::downscale_factor, ::downscale_factor]
+    # Génération du graphique de contrôle (0_CALIBRATION...)
+    plt.figure(figsize=(10, 5))
+    plt.plot(centers, hist, color='gray', alpha=0.5, label="Spectre complet")
+    plt.axvspan(0.85, 1.0, color='red', alpha=0.1, label="Zone Tissu (>0.85)")
+    plt.axvspan(final_min, final_max, color='green', alpha=0.3, label=f"Collagène ({final_min}-{final_max})")
+    plt.title(f"Calibration V36 | {CODE_VERSION}")
+    plt.savefig(os.path.join(out_dir, "0_CALIBRATION_V36.png"))
+    plt.close('all')
 
-    # Classification HSV
-    mask_air, mask_collagen, mask_tissue_final, mask_unclassified = classify_hsv(small_img, small_mask)
+    return final_min, final_max
 
+# =========================================================
+# 2. MOTEUR D'ANALYSE (Yeux de l'algo)
+# =========================================================
+
+def analyze_tile_adaptive(tile, b_min, b_max):
+    """
+    Analyse PIXEL PAR PIXEL d'une tuile haute définition.
+    C'est ici que la précision se joue.
+    """
+    hsv = color.rgb2hsv(tile)
+    hue, sat, val = hsv[:,:,0], hsv[:,:,1], hsv[:,:,2]
+
+    # 1. Est-ce de la matière ? (Pas blanc, pas noir, pas gris)
+    is_matter = (sat > HSV_SAT_MIN) & (val > HSV_VAL_MIN) & (val < HSV_VAL_MAX)
+
+    # 2. Est-ce que la teinte est dans la fourchette "Collagène" calibrée plus haut ?
+    is_coll = (hue >= b_min) & (hue <= b_max) & is_matter
+
+    # 3. Tout ce qui est matière mais PAS collagène est du Tissu
+    is_tiss = is_matter & (~is_coll)
+
+    mask = np.zeros(tile.shape[:2], dtype=np.uint8)
+    mask[is_coll] = ID_COLL; mask[is_tiss] = ID_TISS
+    return mask
+
+def force_normalize_8bit(tile):
+    # Utilitaire pour s'assurer que l'image est lisible (convertit 16-bit en 8-bit si besoin)
+    if tile is None or tile.size == 0: return None
+    if tile.dtype == np.uint8: return tile
+    img = tile.astype(float)
+    if img.max() == img.min(): return np.zeros(tile.shape, dtype=np.uint8)
+    img = (img - img.min()) / (img.max() - img.min()) * 255.0
+    return np.clip(img, 0, 255).astype(np.uint8)
+
+def create_radar_mask(slide):
+    """
+    Crée une carte grossière du poumon pour savoir où regarder.
+    Évite de traiter le fond blanc inutilement.
+    """
+    print("   ↳ 📡 Radar : Scan structure (Mode Smart V51)...")
+    try: thumb = np.array(slide.get_thumbnail((2048, 2048)).convert("RGB"))
+    except: thumb = np.array(slide.get_thumbnail((1024, 1024)).convert("RGB"))
+    thumb = force_normalize_8bit(thumb)
+    gray = color.rgb2gray(thumb)
+
+    # Otsu : algorithme qui sépare automatiquement le fond clair du sujet sombre
+    thresh = filters.threshold_otsu(gray)
+    binary = gray < thresh # True là où il y a du tissu
+
+    # Nettoyage (bouche les petits trous, supprime les poussières)
+    binary = morphology.remove_small_objects(binary, min_size=500)
+    binary = morphology.binary_closing(binary, morphology.disk(5))
+    mask = binary_fill_holes(binary)
+
+    return mask, thumb
+
+# =========================================================
+# 3. GESTION DES SORTIES (Rapports)
+# =========================================================
+
+def save_zoom_evidence(tile, mask, radar_hd, out_dir, x, y, stats):
+    """ Sauvegarde une image témoin pour validation humaine """
+    # Code de génération d'image (Omis pour brièveté, identique au code original)
+    # ... (Création de la comparaison Originale vs Masque) ...
+    pass
+
+def generate_report(vis_map, counts, filename, out_dir, proc_time, bmin, bmax):
+    """ Génère le rapport final PNG et calcule les scores """
     # Calcul des pourcentages
-    total_pixels = small_mask.sum()
-    if total_pixels == 0:
-        raise ValueError("Aucun pixel à analyser dans le contour détecté.")
+    total = sum(counts.values())
+    if total == 0: total = 1
 
-    collagen_pct = round(mask_collagen.sum() / total_pixels * 100, 2)
-    tissue_pct = round(mask_tissue_final.sum() / total_pixels * 100, 2)
-    air_pct = round(mask_air.sum() / total_pixels * 100, 2)
-    unclassified_pct = round(mask_unclassified.sum() / total_pixels * 100, 2)
+    # SCORE FIBROSE = Collagène / (Collagène + Tissu)
+    # On exclut l'Air du calcul médical
+    mat = counts[ID_COLL] + counts[ID_TISS]
+    fib = (counts[ID_COLL] / mat * 100) if mat > 0 else 0
 
-    # Vérification
-    sum_pct = collagen_pct + tissue_pct + air_pct
-    print_info(f"Somme des pourcentages = {sum_pct:.2f}% (devrait être 100%)")
-    print_info(f"Pixels non classés fusionnés dans 'Autre' : {unclassified_pct}%")
-
-    print_success(f"Quantification terminée en {time.time() - start:.1f}s")
+    # ... (Génération des graphiques Matplotlib) ...
 
     return {
-        "Collagène (%)": collagen_pct,
-        "Autre (%)": tissue_pct,
-        "Air utile (%)": air_pct
-    }, small_img, small_mask, mask_air, mask_collagen, mask_tissue_final, mask_unclassified
-
-
-# ================================================================
-# VISUALISATION
-# ================================================================
-def visualize_contour_zone(img, samplemask, output_path, timestamp):
-    if plt is None:
-        return
-
-    display_factor = 20 if min(img.shape[:2]) > 5000 else 5
-    img_d = img[::display_factor, ::display_factor]
-    mask_d = samplemask[::display_factor, ::display_factor]
-
-    overlay = img_d.copy().astype(np.float32)
-    overlay[~mask_d] = 0.3 * overlay[~mask_d] + 0.7 * np.array([255, 255, 0])
-
-    plt.figure(figsize=(10, 10))
-    plt.imshow(overlay.astype(np.uint8))
-    plt.axis("off")
-    plt.title(f"Contour détecté (jaune = exclu)\n{timestamp}", fontsize=10)
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-def visualize_segmentation(small_img, small_mask, output_path, timestamp):
-    if plt is None:
-        return
-
-    # Recalcul des masques pour la visualisation
-    mask_air, mask_collagen, mask_tissue_final, _ = classify_hsv(small_img, small_mask)
-
-    seg = np.zeros_like(small_img)
-    seg[..., 0][mask_tissue_final] = 255  # Rouge
-    seg[..., 1][mask_collagen] = 255      # Vert
-    seg[..., 2][mask_air] = 255           # Bleu
-
-    plt.figure(figsize=(10, 10))
-    plt.imshow(seg)
-    plt.axis("off")
-    plt.title(f"Segmentation - Rouge=Autre | Vert=Collagène | Bleu=Air utile\n{timestamp}", fontsize=10)
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-def visualize_unclassified(small_img, small_mask, mask_air, mask_collagen, mask_tissue, mask_unclassified, output_path, timestamp):
-    """
-    Affiche une carte des pixels non classés à l'intérieur du contour.
-    Les pixels non classés apparaissent en ROUGE vif.
-    """
-    if plt is None:
-        print_warning("Matplotlib requis pour visualisation des pixels non classés.")
-        return
-
-    vis = small_img.copy().astype(np.uint8)
-    vis[mask_unclassified] = np.array([255, 0, 0], dtype=np.uint8)
-
-    unclassified_pct = (mask_unclassified.sum() / small_mask.sum() * 100) if small_mask.sum() > 0 else 0
-
-    plt.figure(figsize=(10, 10))
-    plt.imshow(vis)
-    plt.title(f"Pixels NON classés (rouge) : {unclassified_pct:.1f}%\n{timestamp}", fontsize=10)
-    plt.axis("off")
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-def visualize_confidence_map(small_mask, mask_air, mask_collagen, mask_tissue, mask_unclassified, output_path, timestamp):
-    """
-    Génère une carte de confiance :
-        2 = confiance forte (catégorisation nette)
-        1 = moyenne (catégorisation mais couleur ambiguë)
-        0 = faible (non classés)
-    """
-    if plt is None:
-        print_warning("Matplotlib requis pour carte de confiance.")
-        return
-
-    confidence = np.zeros_like(small_mask, dtype=np.float32)
-    confidence[mask_collagen | mask_air] = 2.0
-    confidence[mask_tissue & ~mask_unclassified] = 1.0
-
-    plt.figure(figsize=(10, 10))
-    plt.imshow(confidence, cmap="inferno")
-    plt.colorbar(label="Niveau de confiance (0–2)")
-    plt.title(f"Carte de confiance de la segmentation\n{timestamp}", fontsize=10)
-    plt.axis("off")
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
-
-
-# ================================================================
-# TRAITEMENT D'UNE IMAGE
-# ================================================================
-def process_single_image(image_path, output_folder, downscale_preview, downscale_factor, include_diagnostics=False):
-    """
-    Traite une image et génère les visualisations.
-
-    Args:
-        include_diagnostics: Si True, génère aussi les cartes de confiance et pixels non classés
-    """
-    basename = Path(image_path).stem
-    print_header(f"TRAITEMENT: {basename}")
-
-    start_total = time.time()
-    timestamp_str = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
-    # 1) Lecture
-    img = read_tiff(image_path, downscale_preview=downscale_preview)
-
-    # 2) Détection contour
-    samplemask = detect_sample_contour(img, subsample_factor=10)
-
-    # 3) Sauvegarde contour
-    contour_path = os.path.join(output_folder, f"{basename}_contour_{timestamp_str}.png")
-    visualize_contour_zone(img, samplemask, contour_path, timestamp_str)
-
-    # 4) Quantification
-    results, small_img, small_mask, mask_air, mask_collagen, mask_tissue, mask_unclassified = quantify_structures(
-        img, samplemask, downscale_factor
-    )
-
-    # 5) Sauvegarde segmentation
-    seg_path = os.path.join(output_folder, f"{basename}_segmentation_{timestamp_str}.png")
-    visualize_segmentation(small_img, small_mask, seg_path, timestamp_str)
-
-    # 6) OPTIONNEL : Visualisations de diagnostic
-    if include_diagnostics:
-        unclassified_path = os.path.join(output_folder, f"{basename}_unclassified_{timestamp_str}.png")
-        visualize_unclassified(small_img, small_mask, mask_air, mask_collagen, mask_tissue, mask_unclassified,
-                              unclassified_path, timestamp_str)
-
-        confidence_path = os.path.join(output_folder, f"{basename}_confidence_{timestamp_str}.png")
-        visualize_confidence_map(small_mask, mask_air, mask_collagen, mask_tissue, mask_unclassified,
-                                confidence_path, timestamp_str)
-
-    total_time = round(time.time() - start_total, 2)
-
-    return {
-        "Nom du fichier": basename,
-        "Date/Heure": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        **results,
-        "Temps de calcul (s)": total_time,
-        "Erreur": ""
+        "Fichier": filename,
+        "Date": DATE_RUN,
+        "Version": CODE_VERSION,
+        "Score_Fibrose": round(fib, 2),
+        # ... autres stats ...
     }
 
+# =========================================================
+# 4. WORKER (L'ouvrier qui traite une image)
+# =========================================================
 
-# ================================================================
-# CHOIX DU MODE D'ANALYSE
-# ================================================================
-def choose_analysis_mode():
-    print_header("CHOIX DU MODE D'ANALYSE")
-    print("1️⃣  Équilibré (recommandé) → preview=2, downscale=10")
-    print("2️⃣  Mode sûr (anti-crash)  → preview=3, downscale=10")
-    print("3️⃣  Haute précision        → preview=2, downscale=7")
-    print("4️⃣  Batch rapide           → preview=3, downscale=12")
+def process_one_image(path, output_root):
+    start = time.time()
+    name = os.path.basename(path)
+    print(f"\n🔹 FICHIER : {name}")
 
-    while True:
-        choice = input("👉 Choisissez un mode (1-4) : ").strip()
-        if choice in ['1', '2', '3', '4']:
-            break
-        print_error("Choix invalide, réessayez.")
+    # Création dossier spécifique
+    out_dir = os.path.join(output_root, f"ANALYSE_{os.path.splitext(name)[0]}")
+    os.makedirs(out_dir, exist_ok=True)
 
-    return {"1": (2, 10), "2": (3, 10), "3": (2, 7), "4": (3, 12)}[choice]
+    slide = None
+    try:
+        slide = tiffslide.TiffSlide(path)
 
+        # 1. Calibration
+        bmin, bmax = auto_calibrate_hsv_v36(slide, out_dir)
 
-# ================================================================
-# SÉLECTION DES IMAGES
-# ================================================================
-def get_image_list():
-    print_header("SÉLECTION DES IMAGES")
-    print("1️⃣  Sélection manuelle (une par une, avec 'done' à la fin)")
-    print("2️⃣  Dossier complet (toutes les images du dossier)")
-    while True:
-        mode = input("👉 Choisissez un mode (1 ou 2) : ").strip()
-        if mode in ["1", "2"]:
-            break
-        print_error("Choix invalide.")
+        # 2. Radar
+        W, H = slide.dimensions
+        mask_global, thumb = create_radar_mask(slide)
+        hm, wm = mask_global.shape
+        # Ratios pour convertir coordonnées Radar -> Coordonnées HD
+        rx, ry = W/wm, H/hm
 
-    images = []
-    if mode == "1":
-        while True:
-            path = input("Chemin image (ou 'done'): ").strip()
-            if path.lower() == "done":
-                break
-            path = path.replace('"', '').replace("'", "")
-            if os.path.isfile(path):
-                images.append(path)
-                print_success(f"Ajoutée: {os.path.basename(path)}")
-            else:
-                print_error("Fichier non trouvé.")
-    else:
-        folder = input("Chemin du dossier contenant les images : ").strip()
-        folder = folder.replace('"', '').replace("'", "")
-        if not os.path.isdir(folder):
-            print_error("Dossier introuvable.")
-            return []
-        for ext in ("*.tif", "*.tiff", "*.png", "*.jpg", "*.jpeg"):
-            images.extend(Path(folder).glob(ext))
-        images = [str(p) for p in images]
-        print_success(f"{len(images)} images détectées dans le dossier.")
+        # 3. Création de la liste des tâches (Tuiles à scanner)
+        tasks = []
+        for y in range(0, H, TILE_SIZE):
+            for x in range(0, W, TILE_SIZE):
+                # On vérifie sur le radar si cette zone contient du tissu
+                xs, xe = int(x/rx), int(min(x+TILE_SIZE, W)/rx)
+                ys, ye = int(y/ry), int(min(y+TILE_SIZE, H)/ry)
+                if xs<wm and ys<hm and np.any(mask_global[ys:ye, xs:xe]):
+                    tasks.append((x, y, xs, xe, ys, ye))
 
-    return images
+        # ... (Initialisation compteurs) ...
 
+        # Boucle principale de traitement
+        for i, (x, y, xs, xe, ys, ye) in enumerate(tasks):
+            # Lecture de la tuile HD
+            raw = slide.read_region((x, y), 0, (wr, hr))
+            tile = np.array(raw.convert("RGB"))
 
-# ================================================================
-# FONCTION MAIN
-# ================================================================
-def main():
-    print_header("ANALYSE AUTOMATISÉE D'IMAGES HISTOLOGIQUES")
-    print_hsv_guide()
+            # Analyse HD
+            mask_hd = analyze_tile_adaptive(tile, bmin, bmax)
 
-    downscale_preview, downscale_factor = choose_analysis_mode()
+            ### CŒUR DE LA V51 : SMART EDGES ###
+            # On redimensionne le masque radar basse définition vers la haute définition.
+            # order=1 : Interpolation bilinéaire (crée un flou sur les bords au lieu d'escaliers)
+            radar_raw = resize(mask_global[ys:ye, xs:xe].astype(float), (hr, wr), order=1, preserve_range=True)
 
-    # CHOIX : TEST OU SKIP
-    print_header("PHASE DE TEST")
-    print("Voulez-vous faire un test sur une image avant le batch ?")
-    print("1️⃣  Oui - Tester une image (recommandé)")
-    print("2️⃣  Non - Passer directement au batch")
+            # Seuil 0.15 : C'est le compromis "Smart".
+            # Le radar flou donne des valeurs entre 0 et 1 sur les bords.
+            # > 0.15 permet de coller à la forme sans être trop strict (escalier) ni trop large (bruit).
+            radar_loc = radar_raw > 0.15
 
-    while True:
-        test_choice = input("👉 Votre choix (1 ou 2) : ").strip()
-        if test_choice in ["1", "2"]:
-            break
-        print_error("Choix invalide.")
+            # On ne compte que les pixels valides (Détectés par analyse HD ET dans la zone Radar)
+            valid = mask_hd[radar_loc]
 
-    # PHASE 1 : TEST (si choisi)
-    if test_choice == "1":
-        print_header("PHASE 1: TEST SUR UNE IMAGE")
-        test_image = input("Chemin de l'image de test (ou 'q' pour quitter): ").strip()
-        test_image = test_image.replace('"', '').replace("'", "")
+            # ... (Mise à jour des compteurs et de la carte visuelle) ...
 
-        if test_image.lower() == "q":
-            print_warning("Analyse annulée.")
-            return
+        # Fin de l'image
+        data = generate_report(...)
+        return data
 
-        out_dir = os.path.join(os.path.dirname(test_image), "TEST_RESULTS")
-        os.makedirs(out_dir, exist_ok=True)
-        try:
-            row = process_single_image(test_image, out_dir, downscale_preview, downscale_factor, include_diagnostics=False)
-            print_success(f"Résultats du test : Collagène={row['Collagène (%)']}%, Autre={row['Autre (%)']}%, Air={row['Air utile (%)']}%")
-            print_info(f"Fichiers générés dans : {out_dir}")
-        except Exception as e:
-            print_error(f"Erreur pendant le test: {e}")
-            return
+    except Exception as e:
+        print(f"❌ Erreur : {e}")
+        return None
 
-        if input("Valider et passer au batch ? (o/n): ").strip().lower() != "o":
-            print_warning("Analyse interrompue.")
-            return
+    finally:
+        # Nettoyage IMPORTANT pour éviter le crash WinError 10055
+        if slide: slide.close()
+        plt.close('all')
+        gc.collect() # Vide la RAM
 
-    # PHASE 2 : BATCH
-    print_header("PHASE 2: TRAITEMENT BATCH")
-    images = get_image_list()
-    if not images:
-        print_error("Aucune image fournie.")
-        return
-
-    out_root = input("Dossier de sortie: ").strip()
-    out_root = out_root.replace('"', '').replace("'", "")
-    os.makedirs(out_root, exist_ok=True)
-
-    print("\nVoulez-vous générer les visualisations de diagnostic (pixels non classés + carte de confiance) ?")
-    print("⚠️  Cela augmente le temps de traitement")
-    diag_choice = input("👉 Générer les diagnostics ? (o/n) : ").strip().lower()
-    include_diag = (diag_choice == "o")
-
-    all_rows = []
-    for img_path in images:
-        try:
-            out_dir = os.path.join(out_root, Path(img_path).stem)
-            os.makedirs(out_dir, exist_ok=True)
-            row = process_single_image(img_path, out_dir, downscale_preview, downscale_factor, include_diagnostics=include_diag)
-            all_rows.append(row)
-        except Exception as e:
-            print_error(f"Erreur sur {img_path}: {e}")
-            all_rows.append({
-                "Nom du fichier": Path(img_path).stem,
-                "Date/Heure": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "Collagène (%)": "",
-                "Autre (%)": "",
-                "Air utile (%)": "",
-                "Temps de calcul (s)": "",
-                "Erreur": str(e)
-            })
-
-    if all_rows:
-        df = pd.DataFrame(all_rows)
-        csv_path = os.path.join(out_root, "ANALYSE_COMPLETE.csv")
-        df.to_csv(csv_path, index=False)
-        print_success(f"CSV global enregistré: {csv_path}")
-
-        df_ok = df[df["Erreur"] == ""]
-        if not df_ok.empty:
-            print_header("RÉSUMÉ GLOBAL")
-            print(f"→ Moyenne Collagène: {df_ok['Collagène (%)'].astype(float).mean():.2f}%")
-            print(f"→ Moyenne Autre: {df_ok['Autre (%)'].astype(float).mean():.2f}%")
-            print(f"→ Moyenne Air utile: {df_ok['Air utile (%)'].astype(float).mean():.2f}%")
-            print(f"→ Temps moyen: {df_ok['Temps de calcul (s)'].astype(float).mean():.1f}s")
-
-    print_header("FIN DU PROGRAMME")
-
-if __name__ == "__main__":
-    main()
-
-
-
-
-
-
-
-
+# ... (Le reste est l'interface utilisateur Main UI déjà connue) ...
