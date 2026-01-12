@@ -53,7 +53,7 @@ def auto_calibrate_hsv_v36(slide, out_dir):
     Cette fonction regarde l'image en basse résolution pour décider
     quelles nuances de bleu sont du collagène.
     """
-    print("   ↳ 🧠 Calibration (Cyan Force)...")
+    print("   ↳ 🧠 Calibration V36 (Cyan Force)...")
 
     # On récupère une miniature (thumbnail) pour aller vite
     try: thumb = np.array(slide.get_thumbnail((1024, 1024)).convert("RGB"))
@@ -275,3 +275,69 @@ def process_one_image(path, output_root):
         gc.collect() # Vide la RAM
 
 # ... (Le reste est l'interface utilisateur Main UI déjà connue) ...
+# =========================================================
+# MAIN
+# =========================================================
+
+def main():
+    print(f"\n=== {CODE_VERSION} ===")
+    print("1. Fichiers manuels")
+    print("2. Dossier complet")
+
+    choice = input("Choix (1/2) : ").strip()
+    unique_paths = set()
+
+    if choice == '1':
+        raw = input("Chemins (virgule) : ")
+        paths = [p.strip().replace('"','') for p in raw.split(',')]
+        for p in paths:
+            if os.path.isfile(p): unique_paths.add(os.path.normpath(p))
+
+    elif choice == '2':
+        folder = input("Dossier images : ").strip().replace('"','')
+        if os.path.isdir(folder):
+            exts = ('*.tif', '*.tiff', '*.svs', '*.ndpi')
+            for ext in exts:
+                found = glob.glob(os.path.join(folder, ext)) + glob.glob(os.path.join(folder, ext.upper()))
+                for f in found:
+                    unique_paths.add(os.path.normpath(f))
+
+    files_to_process = list(unique_paths)
+
+    if not files_to_process:
+        print("❌ Aucun fichier trouvé.")
+        return
+
+    out_root_input = input("Dossier sortie (Entrée pour 'Resultats_V51') : ").strip().replace('"','')
+    if not out_root_input:
+        out_root = os.path.join(os.path.dirname(files_to_process[0]), 'Resultats_V51')
+    else:
+        out_root = out_root_input
+
+    os.makedirs(out_root, exist_ok=True)
+
+    print(f"\n--- DÉMARRAGE ({len(files_to_process)} images uniques) ---")
+    print(f"📂 Sortie : {out_root}")
+
+    global_data_list = []
+
+    for i, img_path in enumerate(files_to_process):
+        print(f"\n📢 Image {i+1}/{len(files_to_process)}")
+        res = process_one_image(img_path, out_root)
+        if res:
+            global_data_list.append(res)
+        time.sleep(0.5)
+
+    if global_data_list:
+        csv_global_path = os.path.join(out_root, "RESULTATS_GLOBAL_V51.csv")
+        print(f"\n💾 Écriture du CSV Global : {csv_global_path}")
+        keys = global_data_list[0].keys()
+        with open(csv_global_path, 'w', newline='') as f:
+            dict_writer = csv.DictWriter(f, fieldnames=keys, delimiter=';')
+            dict_writer.writeheader()
+            dict_writer.writerows(global_data_list)
+
+    print("\n✅ TOUT EST TERMINÉ.")
+
+if __name__ == "__main__":
+    main()
