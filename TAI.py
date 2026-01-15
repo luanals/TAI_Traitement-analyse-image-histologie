@@ -296,7 +296,7 @@ def main():
     elif choice == '2':
         folder = input("Dossier images : ").strip().replace('"','')
         if os.path.isdir(folder):
-            exts = ('*.tif', '*.tiff', '*.svs', '*.ndpi')
+            exts = ('*.tif', '*.tiff', '*.svs', '*.ndpi', '*png', '*jpg', '*jpeg', '*.bmp')
             for ext in exts:
                 found = glob.glob(os.path.join(folder, ext)) + glob.glob(os.path.join(folder, ext.upper()))
                 for f in found:
@@ -341,3 +341,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
