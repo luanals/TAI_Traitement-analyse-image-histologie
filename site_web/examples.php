@@ -1,56 +1,135 @@
-<?php include 'includes/header.php'; ?>
+<?php
+    $page_title = "Résultats & Démonstration";
+    include 'includes/header.php';
+?>
 
-<section class="visuals">
-    <h2>Exemples de Segmentation Visuelle</h2>
-    <p>L'algorithme de segmentation identifie et colore les différentes composantes pulmonaires (Coll. : bleu, Tissu : rouge, Air : noir) pour une validation visuelle rapide.</p>
+<section class="hero-results">
+    <h2>📊 Résultats Visuels & Quantitatifs</h2>
+    <p class="lead">
+        Validation visuelle de l'algorithme <strong>TAI</strong> sur des échantillons haute définition.
+    </p>
+</section>
 
-    <div class="example-image-container">
-        <div class="image-pair">
-            <img src="assets/img/original_histology.jpg" alt="Image histologique originale (Trichrome de Masson)">
-            <p>Image Originale</p>
-        </div>
-        <div class="image-pair">
-            <img src="assets/img/segmented_output.png" alt="Image segmentée et colorée">
-            <p>Résultat de la Segmentation</p>
-        </div>
-        <p><img src="assets/img/test.png" alt="image test"/></p>
-    </div>
+<section class="reading-guide">
+    <h3>🎨 Guide de Lecture (Trichrome de Masson)</h3>
+    <p>Que ce soit sur l'image originale ou segmentée, les couleurs ont une signification biologique :</p>
     
+    <div class="legend-container">
+        <div class="legend-item">
+            <span class="color-dot blue"></span>
+            <div>
+                <strong>Bleu = Collagène</strong>
+                <span class="sub-text">Marqueur de la Fibrose (Pathologie)</span>
+            </div>
+        </div>
+        <div class="legend-item">
+            <span class="color-dot red"></span>
+            <div>
+                <strong>Rouge/Violet = Tissu, à l’exclusion du collagène</strong>
+                <span class="sub-text">Muscle, Cytoplasme, Cellules</span>
+            </div>
+        </div>
+        <div class="legend-item">
+            <span class="color-dot white"></span>
+            <div>
+                <strong>Blanc = Air</strong>
+                <span class="sub-text">Alvéoles pulmonaires ou Vide</span>
+            </div>
+        </div>
+    </div>
 </section>
 
 <hr>
 
-<section class="quantitative">
-    <h2>Résultats Quantitatifs</h2>
-    <p>Le tableau ci-dessous présente un exemple d'évaluation quantitative fournie par l'outil, exportée dans un fichier `.csv` :</p>
+<section class="zoom-showcase">
+    <h3>🔍 Inspection HD : Comparaison de Pathologies</h3>
+    <p>
+        L'algorithme doit être capable de discriminer les tissus sains des tissus fibrosés. 
+        Voici une comparaison entre des zone avec plus et moins de collagène.
+    </p>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Fichier Image</th>
-                <th>Coll. (%)</th>
-                <th>Tissu (%)</th>
-                <th>Air (%)</th>
-                <th>Surface Totale (px�)</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>sample_001.tif</td>
-                <td>12.5</td>
-                <td>25.3</td>
-                <td>62.2</td>
-                <td>3,456,000</td>
-            </tr>
-            <tr>
-                <td>sample_002.png</td>
-                <td>9.8</td>
-                <td>28.1</td>
-                <td>62.1</td>
-                <td>4,100,000</td>
-            </tr>
-            </tbody>
-    </table>
+    <div class="case-study">
+        <h4 class="case-title">🔴 Cas A : Fibrose Plus Sévère (Beaucoup de Collagène)</h4>
+        <div class="zoom-container">
+            <div class="zoom-box">
+                <img src="assets/img/zoom_high_orig.png" alt="Cas A Original">
+                <span class="img-label">Original (Trichrome)</span>
+            </div>
+            <div class="zoom-box">
+                <img src="assets/img/zoom_high_seg.jpg" alt="Cas A Segmenté">
+                <span class="img-label">Segmentation</span>
+            </div>
+        </div>
+        <div class="result-bar">
+            <span>Score Fibrose détecté : <strong>54.79%</strong></span>
+            <div class="progress-track"><div class="progress-fill high" style="width: 45%;"></div></div>
+        </div>
+    </div>
+
+    <hr class="separator-dashed">
+
+    <div class="case-study">
+        <h4 class="case-title">🟢 Cas B : Fibrose Plus Faible</h4>
+        <div class="zoom-container">
+            <div class="zoom-box">
+                <img src="assets/img/zoom_low_orig.png" alt="Cas B Original">
+                <span class="img-label">Original (Trichrome)</span>
+            </div>
+            <div class="zoom-box">
+                <img src="assets/img/zoom_low_seg.jpg" alt="Cas B Segmenté">
+                <span class="img-label">Segmentation</span>
+            </div>
+        </div>
+        <div class="result-bar">
+            <span>Score Fibrose détecté : <strong>36.38%</strong></span>
+            <div class="progress-track"><div class="progress-fill low" style="width: 12%;"></div></div>
+        </div>
+    </div>
+
+</section>
+
+<hr>
+
+<section class="smart-edges">
+    <h3>✨ Amélioration des contours ("Smart Edges")</h3>
+    <div class="comparison-container">
+        <div class="text-content">
+            <p>
+                Une difficulté majeure des images WSI est la gestion des bords du poumon.
+                Les anciennes versions créaient un effet "escalier". La <strong>version finale</strong> utilise une interpolation adaptative pour lisser ces contours.
+            </p>
+            <ul class="specs-list">
+                <li><strong>Avant :</strong> Contours pixelisés, risque de faux positifs.</li>
+                <li><strong>Après (version finale) :</strong> Lissage naturel qui suit la membrane.</li>
+            </ul>
+        </div>
+        <div class="visual-content">
+            <img src="assets/img/smart_edges_comparaison.png" alt="Comparaison Escalier vs Lisse (Page 12)">
+            <p class="caption">Comparaison : Masque binaire classique vs Interpolation de la version finale</p>
+        </div>
+    </div>
+</section>
+
+<hr>
+
+<section class="global-stats">
+    <h3>📈 Analyse Quantitative (19 Images)</h3>
+    <p>Distribution des résultats sur le jeu de données complet.</p>
+
+    <div class="stats-dashboard">
+        <div class="stat-card">
+            <span class="stat-value">5.2 Md</span>
+            <span class="stat-label">Pixels Analysés</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">49.2 %</span>
+            <span class="stat-label">Fibrose Max</span>
+        </div>
+    </div>
+
+    <div class="boxplot-container">
+        <img src="assets/img/boxplot_global.png" alt="Statistiques Globales (Page 15)">
+    </div>
 </section>
 
 <?php include 'includes/footer.php'; ?>

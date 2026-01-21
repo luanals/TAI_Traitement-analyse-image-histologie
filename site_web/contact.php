@@ -1,54 +1,55 @@
 <?php
-/**
- * Logique PHP pour la gestion du formulaire de contact.
- */
+
 $message_status = "";
 
 if (isset($_POST['submit'])) {
-    // 1. Définir l'adresse de réception
+    // 1. DÃ©finir l'adresse de rÃ©ception
     $to = "luana.LOPES-SANTIAGO@etu.univ-amu.fr";
     
-    // 2. Récupérer et sécuriser les données
+    // 2. RÃ©cupÃ©rer et sÃ©curiser les donnÃ©es
     $subject = "Nouveau contact TAI-SDRA: " . htmlspecialchars($_POST['subject']);
     $name = htmlspecialchars($_POST['name']);
     $email = filter_var($_POST['email'], FILTER_VALIDATE_EMAIL);
     $message = htmlspecialchars($_POST['message']);
 
     if (!$email) {
-        $message_status = "? L'adresse email fournie n'est pas valide.";
+        $message_status = "âš ï¸ L'adresse email fournie n'est pas valide.";
     } elseif (empty($name) || empty($subject) || empty($message)) {
-        $message_status = "? Veuillez remplir tous les champs du formulaire.";
+        $message_status = "âš ï¸ Veuillez remplir tous les champs du formulaire.";
     } else {
         // 3. Construire le contenu du mail
         $email_content = "Nom: $name\n";
         $email_content .= "Email: $email\n\n";
         $email_content .= "Message:\n$message\n";
     
-        // 4. Définir les en-têtes
+        // 4. DÃ©finir les en-tÃªtes
         $email_headers = "From: " . $email . "\r\n" .
                          "Reply-To: " . $email . "\r\n" .
                          "X-Mailer: PHP/" . phpversion();
     
-        // 5. Utiliser la fonction mail() (nécessite un serveur configuré)
+        // 5. Utiliser la fonction mail() (nÃ©cessite un serveur configurÃ©)
         if (mail($to, $subject, $email_content, $email_headers)) {
-            $message_status = "? Votre message a été envoyé avec succès ! Nous vous répondrons bientôt.";
-            // Optionnel : Vider les champs après succès si vous ne voulez pas les réafficher
+            $message_status = "ðŸ“¨ Votre message a Ã©tÃ© envoyÃ© avec succÃ¨s ! Nous vous rÃ©pondrons bientÃ´t.";
+            // Optionnel : Vider les champs aprÃ¨s succÃ¨s si vous ne voulez pas les rÃ©afficher
             unset($_POST['name'], $_POST['email'], $_POST['subject'], $_POST['message']);
         } else {
-            $message_status = "? Erreur critique lors de l'envoi. Veuillez vérifier la configuration de mail() sur le serveur.";
+            $message_status = "âš ï¸ Erreur critique lors de l'envoi. Veuillez vÃ©rifier la configuration de mail() sur le serveur.";
         }
     }
 }
 ?>
 
-<?php include 'includes/header.php'; ?>
+<?php 
+	$page_title = "Formulaire de Contact";
+	include 'includes/header.php'; 
+?>
 
 <section class="contact-form">
     <h2 style="text-align:center;">Nous Contacter</h2>
     <p>Pour toute question technique, collaboration ou demande d'information sur le projet SDRA, veuillez utiliser le formulaire ci-dessous.</p>
     
     <?php 
-    // Affichage des messages de statut (succès ou erreur)
+    // Affichage des messages de statut (succÃ¨s ou erreur)
     if (!empty($message_status)) { 
         echo "<p class='status-message'>" . $message_status . "</p>"; 
     } 
