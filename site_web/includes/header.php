@@ -1,3 +1,9 @@
+<?php
+// On démarre la session si elle n'est pas déjà démarrée
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -16,13 +22,19 @@
         <div class="container">
             <h1>TAI-SDRA</h1>
             <nav>
-                <ul>
-                    <li><a href="index.php">Accueil</a></li>
-                    <li><a href="about.php">À Propos</a></li>
-                    <li><a href="usage.php">Utilisation</a></li>
-                    <li><a href="examples.php">Exemples & Résultats</a></li>
-                    <li><a href="contact.php">Contact</a></li>
-                </ul>
+				<ul>
+    				<li><a href="index.php">Accueil</a></li>
+    				<li><a href="about.php">À Propos</a></li>
+    				<li><a href="usage.php">Utilisation</a></li>
+    				<li><a href="examples.php">Exemples</a></li>
+    				<li><a href="contact.php">Contact</a></li>
+
+    				<?php if (isset($_SESSION['est_connecte']) && $_SESSION['est_connecte'] === true): ?>
+        				<li class="locked-link"><a href="processus.php">🔓 Processus</a></li>
+    				<?php else: ?>
+        				<li class="locked-link"><a href="processus.php">🔒 Processus</a></li>
+    				<?php endif; ?>
+				</ul>
             </nav>
         </div>
     </header>
