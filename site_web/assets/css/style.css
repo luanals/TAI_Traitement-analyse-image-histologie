@@ -1,7 +1,9 @@
-/* --- Global Reset and Layout --- */
+/* =================================================================== */
+/* 1. VARIABLES & RESET GLOBAL */
+/* =================================================================== */
 :root {
-    --primary-color: #004d40; /* Teal/Vert foncé pour le médical/scientifique */
-    --accent-color: #ff6f00; /* Orange vif pour accentuer */
+    --primary-color: #004d40; /* Teal/Vert foncé */
+    --accent-color: #ff6f00;  /* Orange vif */
     --text-color: #333;
     --bg-color: #f8f8f8;
     --white: #ffffff;
@@ -14,6 +16,9 @@ body {
     background-color: var(--bg-color);
     margin: 0;
     padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
 }
 
 .container {
@@ -34,7 +39,9 @@ hr {
     margin: 30px 0;
 }
 
-/* --- Header & Navigation --- */
+/* =================================================================== */
+/* 2. HEADER & NAVIGATION */
+/* =================================================================== */
 header {
     background-color: var(--primary-color);
     color: var(--white);
@@ -74,17 +81,20 @@ header nav a:hover {
     color: var(--accent-color);
 }
 
-/* Clearfix for header */
+/* Clearfix pour le float du header */
 header .container::after {
     content: "";
     display: table;
     clear: both;
 }
 
-/* --- Main Content --- */
+/* =================================================================== */
+/* 3. CONTENU PRINCIPAL & SECTIONS */
+/* =================================================================== */
 main {
     padding-top: 20px;
     padding-bottom: 50px;
+    flex-grow: 1; /* Pousse le footer vers le bas */
 }
 
 section {
@@ -109,11 +119,9 @@ section {
     margin-top: 0;
 }
 
-.lead {
-    font-size: 1.2em;
-}
+.lead { font-size: 1.2em; }
 
-/* --- Features List (index.php) --- */
+/* Liste des fonctionnalités (Accueil) */
 .feature-list {
     display: flex;
     justify-content: space-around;
@@ -125,15 +133,15 @@ section {
 .feature-list div {
     flex-basis: 45%;
     padding: 15px;
-    background: #e0f2f1; /* Lightened primary color */
+    background: #e0f2f1;
     border-left: 4px solid var(--primary-color);
     border-radius: 4px;
     font-weight: bold;
 }
 
-/* --- Usage/Code Blocks --- */
+/* Blocs de Code */
 pre {
-    background-color: #272822; /* Dark background for code */
+    background-color: #272822;
     color: #f8f8f2;
     padding: 15px;
     border-radius: 5px;
@@ -142,35 +150,9 @@ pre {
     white-space: pre-wrap;
     word-break: break-all;
 }
+pre code { font-family: 'Consolas', 'Monaco', monospace; }
 
-pre code {
-    font-family: 'Consolas', 'Monaco', monospace;
-}
-
-/* --- Examples/Images --- */
-.example-image-container {
-    display: flex;
-    justify-content: space-around;
-    gap: 20px;
-    margin-top: 20px;
-    flex-wrap: wrap;
-}
-
-.image-pair {
-    text-align: center;
-    flex: 1;
-    min-width: 300px;
-}
-
-.image-pair img {
-    max-width: 100%;
-    height: auto;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-/* --- Tables (examples.php) --- */
+/* Tableaux */
 table {
     width: 100%;
     border-collapse: collapse;
@@ -189,115 +171,310 @@ table th {
     font-weight: bold;
 }
 
-table tbody tr:nth-child(even) {
-    background-color: #f2f2f2;
+table tbody tr:nth-child(even) { background-color: #f2f2f2; }
+
+/* =================================================================== */
+/* 4. MODULES SPÉCIFIQUES (Login, Contact, Workflow) */
+/* =================================================================== */
+
+/* --- Login --- */
+.login-container { text-align: center; padding: 40px 0; }
+.login-box {
+    background: #fff;
+    border: 1px solid #ddd;
+    padding: 30px;
+    max-width: 400px;
+    margin: 20px auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+.login-box input {
+    width: 100%; padding: 10px; margin: 10px 0 20px 0;
+    border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
+}
+.error-msg {
+    color: #d32f2f; background: #ffcdd2;
+    padding: 10px; border-radius: 4px; margin-bottom: 15px;
 }
 
-/* --- Footer --- */
-footer {
-    background-color: #333;
-    color: var(--white);
-    text-align: center;
-    padding: 15px 0;
-    margin-top: 20px;
-    font-size: 0.9em;
-}
-
-/* --- Responsive Adjustments --- */
-@media (max-width: 768px) {
-    header h1 {
-        float: none;
-        text-align: center;
-        margin-bottom: 10px;
-    }
-    header nav {
-        float: none;
-        text-align: center;
-    }
-    header nav ul li {
-        margin: 0 10px;
-    }
-    .feature-list div, .example-image-container {
-        flex-basis: 100%;
-    }
-}
-
-/* --- Formulaire de Contact (corrigé pour .centered-form) --- */
-.contact-form {
-  max-width: 100%;
-  padding: 0 10px;
-}
-
-/* the <form> itself */
+/* --- Formulaire de Contact --- */
+.contact-form { max-width: 100%; padding: 0 10px; }
 .contact-form .centered-form {
-  width: 360px;              /* adjust width as you like */
-  max-width: 90%;
-  margin: 0 auto;            /* centers the form box horizontally */
-  padding: 20px;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  background-color: #fff;
-
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 15px;
-  box-sizing: border-box;
+    width: 360px; max-width: 90%; margin: 0 auto;
+    padding: 20px; border: 1px solid #e0e0e0;
+    border-radius: 8px; background-color: #fff;
+    display: flex; flex-direction: column; gap: 15px; box-sizing: border-box;
 }
-
-/* each group (label + input) */
-.contact-form .centered-form .form-group {
-  text-align: center; /* centers labels inside each block */
-}
-
-/* labels */
 .contact-form .centered-form label {
-  display: block;
-  width: 100%;
-  font-weight: bold;
-  color: var(--primary-color);
-  margin-bottom: 5px;
-  text-align: center;
+    display: block; width: 100%; font-weight: bold;
+    color: var(--primary-color); margin-bottom: 5px; text-align: center;
 }
-
-/* inputs and textarea */
-.contact-form .centered-form input[type="text"],
-.contact-form .centered-form input[type="email"],
-.contact-form .centered-form input[name="subject"],
+.contact-form .centered-form input,
 .contact-form .centered-form textarea {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  box-sizing: border-box;
-  text-align: center; /* centers text inside fields */
+    width: 100%; padding: 10px; border: 1px solid #ccc;
+    border-radius: 4px; box-sizing: border-box; text-align: center;
 }
-
-/* textarea */
-.contact-form .centered-form textarea {
-  resize: vertical;
-}
-
-/* submit button */
+.contact-form .centered-form textarea { resize: vertical; }
 .contact-form .centered-form button[type="submit"] {
-  width: 100%;
-  padding: 12px;
-  border: none;
-  border-radius: 4px;
-  background: var(--accent-color);
-  color: var(--white);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.3s;
+    width: 100%; padding: 12px; border: none; border-radius: 4px;
+    background: var(--accent-color); color: var(--white);
+    font-weight: 600; cursor: pointer; transition: background 0.3s;
+}
+.contact-form .centered-form button[type="submit"]:hover { background-color: #e65100; }
+.status-message { text-align: center; margin: 12px auto; max-width: 360px; }
+
+/* --- Workflow / Processus (Timeline) --- */
+.header-flex {
+    display: flex; justify-content: space-between;
+    align-items: center; border-bottom: 2px solid #eee;
+    padding-bottom: 15px; margin-bottom: 30px;
+}
+.btn-logout {
+    background-color: #d32f2f; color: white; padding: 8px 15px;
+    text-decoration: none; border-radius: 4px; font-size: 0.9em;
+}
+.timeline { position: relative; max-width: 800px; margin: 0 auto; }
+.step { display: flex; margin-bottom: 30px; align-items: flex-start; }
+.step-number {
+    background-color: var(--primary-color); color: white;
+    width: 40px; height: 40px; border-radius: 50%;
+    text-align: center; line-height: 40px; font-weight: bold;
+    font-size: 1.2em; flex-shrink: 0; margin-right: 20px;
+}
+.step-content {
+    background: #f9f9f9; padding: 20px; border-radius: 8px;
+    border-left: 4px solid var(--accent-color); width: 100%;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+.step-content h3 { margin-top: 0; color: var(--primary-color); }
+
+/* =================================================================== */
+/* 5. STYLES VISUELS (Zoom, Comparaisons, Stats) */
+/* =================================================================== */
+
+/* --- Zoom Showcase (Boîtes noires) --- */
+.zoom-showcase { text-align: center; }
+.zoom-container {
+    display: flex; justify-content: center; gap: 20px;
+    margin-top: 25px; flex-wrap: wrap;
+}
+.zoom-box {
+    flex: 1; min-width: 300px; max-width: 600px;
+    position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    border-radius: 8px; overflow: hidden; background: #000;
+}
+.zoom-box img {
+    width: 100%; max-width: 100%; height: auto;
+    display: block; object-fit: cover; transition: transform 0.3s ease;
+}
+.zoom-box:hover img { transform: scale(1.02); }
+.img-label {
+    position: absolute; bottom: 0; left: 0; width: 100%;
+    background: rgba(0, 0, 0, 0.7); color: white; padding: 10px;
+    font-weight: bold; text-align: center;
 }
 
-.contact-form .centered-form button[type="submit"]:hover {
-  background-color: #e65100;
+/* --- Cas d'études (A vs B) --- */
+.case-study {
+    margin-bottom: 40px; background: #fff; padding: 20px;
+    border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.case-title {
+    color: var(--primary-color); border-left: 5px solid var(--accent-color);
+    padding-left: 15px; margin-bottom: 15px; text-align: left;
+}
+.separator-dashed { border: none; border-top: 2px dashed #ccc; margin: 40px 0; }
+
+/* Barres de progression */
+.result-bar { max-width: 600px; margin: 20px auto 0; text-align: left; }
+.result-bar span { font-weight: bold; color: #555; display: block; margin-bottom: 5px; }
+.progress-track {
+    background-color: #e0e0e0; border-radius: 10px;
+    height: 12px; width: 100%; overflow: hidden;
+}
+.progress-fill { height: 100%; border-radius: 10px; }
+.progress-fill.high { background-color: #d32f2f; }
+.progress-fill.low { background-color: #388e3c; }
+
+/* --- Smart Edges (Comparaison) --- */
+.comparison-container {
+    display: flex; align-items: center; gap: 30px;
+    background: #f9f9f9; padding: 20px; border-radius: 8px;
+}
+.visual-content {
+    flex: 1; min-width: 300px; max-width: 100%;
+    overflow: hidden; /* Empêche l'image de dépasser */
+}
+.visual-content img {
+    width: 100%; max-width: 100%; height: auto;
+    display: block; border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    border: 2px solid var(--accent-color);
 }
 
-/* status message */
-.status-message {
-  text-align: center;
-  margin: 12px auto;
-  max-width: 360px;
+/* --- Stats et Boxplots --- */
+.boxplot-container {
+    width: 100% !important; overflow: hidden;
+    padding: 0 10px; box-sizing: border-box;
 }
+.boxplot-container img {
+    width: 100% !important; height: auto !important;
+    max-width: 100% !important; display: block;
+}
+.stats-dashboard {
+    display: flex;
+    justify-content: center; /* Centraliza */
+    gap: 15px;
+    margin-bottom: 30px;
+    flex-wrap: wrap; /* CRUCIAL: Permite que caiam para a linha de baixo se não couberem */
+    width: 100%;
+    box-sizing: border-box; /* Garante que padding não aumente a largura total */
+}
+
+.stat-card {
+    background: var(--primary-color);
+    color: white;
+    padding: 15px; /* Reduzi um pouco o padding */
+    border-radius: 8px;
+    text-align: center;
+    
+    /* Configuração de Largura Flexível */
+    flex: 1 1 150px; /* Cresce, Encolhe, Base de 150px */
+    min-width: 140px; /* Largura mínima segura */
+    max-width: 100%;  /* Nunca maior que a tela */
+    
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    box-sizing: border-box;
+}
+
+.stat-value {
+    display: block;
+    font-size: 1.8em; /* Um pouco menor para não quebrar em telas pequenas */
+    font-weight: bold;
+    word-wrap: break-word; /* Quebra o texto se for um número gigante */
+}
+
+.stat-label {
+    font-size: 0.85em;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* --- Légende Couleurs --- */
+.reading-guide {
+    background-color: #f8f9fa; padding: 20px;
+    border-radius: 8px; border-left: 5px solid #2c3e50;
+    margin-bottom: 30px;
+}
+.legend-container {
+    display: flex; justify-content: space-around;
+    flex-wrap: wrap; gap: 20px; margin-top: 15px;
+}
+.legend-item {
+    display: flex; align-items: center; background: white;
+    padding: 10px 15px; border-radius: 50px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05); flex: 1; min-width: 200px;
+}
+.color-dot {
+    width: 20px; height: 20px; border-radius: 50%;
+    margin-right: 15px; border: 2px solid #ddd; flex-shrink: 0;
+}
+.color-dot.blue { background-color: #0066cc; }
+.color-dot.red { background-color: #d32f2f; }
+.color-dot.white { background-color: #ffffff; }
+.sub-text { display: block; font-size: 0.85em; color: #666; font-weight: normal; }
+
+/* =================================================================== */
+/* 6. FOOTER */
+/* =================================================================== */
+footer {
+    background-color: #726D6D; color: var(--white);
+    text-align: center; padding: 30px 0;
+    margin-top: 20px; font-size: 0.9em;
+
+	position: relative;
+}
+footer img {
+    height: 60px; width: auto; margin: 10px 20px;
+    vertical-align: middle; transition: transform 0.3s ease;
+}
+footer img:hover { transform: scale(1.05); }
+footer p { margin: 10px 0 0; opacity: 0.8; }
+
+.w3c-badge {
+    position: absolute; /* Sai do fluxo normal e flutua */
+    right: 20px;        /* 20px da direita */
+    bottom: 20px;       /* 20px de baixo */
+}
+
+/* =================================================================== */
+/* 7. RESPONSIVITÉ (MOBILE) */
+/* =================================================================== */
+@media screen and (max-width: 768px) {
+    /* Header et Nav */
+    header h1, header nav { float: none; text-align: center; }
+    header nav ul li { display: block; margin: 10px 0; }
+
+    /* Forcer l'empilement vertical */
+    .feature-list div,
+    .comparison-container,
+    .zoom-container,
+    .calibration-grid,
+    .stats-dashboard,
+    .header-flex,
+    .legend-container {
+        flex-direction: column !important;
+        gap: 20px;
+    }
+
+    /* Utiliser toute la largeur sur mobile */
+    .text-content, .visual-content, .zoom-box,
+    .calib-img, .calib-desc, .stat-card,
+    .contact-form form, .example-image-container {
+        min-width: 100% !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-left: 0; margin-right: 0;
+    	min-width: 0;
+    }
+
+    /* Ajustement images */
+    .visual-content img, .zoom-box img, .calib-img img {
+        width: 100% !important; height: auto !important;
+        object-fit: contain;
+    }
+
+	.w3c-badge {
+        position: static; /* Volta ao normal (não flutua mais) */
+        margin-top: 15px; /* Dá um espacinho do texto de cima */
+        display: block;
+        text-align: center;
+    }
+
+    /* Typographie */
+    .container { width: 95%; padding: 10px; }
+    h1 { font-size: 1.8em; }
+    h2 { font-size: 1.5em; }
+}
+
+
+
+/* --- Estilo para o Menu de Âncoras --- */
+.page-navigation {
+    background-color: #f0f4f8;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid var(--accent-color);
+    margin-bottom: 30px;
+}
+.page-navigation h3 { margin-top: 0; font-size: 1.1em; }
+.page-navigation ul { list-style: none; padding: 0; }
+.page-navigation li { display: inline-block; margin-right: 15px; }
+.page-navigation a {
+    text-decoration: none;
+    color: var(--primary-color);
+    font-weight: bold;
+    border-bottom: 1px dotted var(--primary-color);
+}
+.page-navigation a:hover { color: var(--accent-color); }
